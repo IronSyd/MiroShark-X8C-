@@ -6,7 +6,11 @@ POST /api/settings        — update config at runtime (no restart required)
 POST /api/settings/test-llm — make a minimal test call and return latency
 """
 
+import json
+import os
+import re
 import time
+from pathlib import Path
 from flask import request, jsonify
 
 from . import settings_bp
@@ -22,11 +26,100 @@ from ..utils.logger import get_logger
 logger = get_logger('miroshark.api.settings')
 
 
+_ENV_PATH = Path(__file__).resolve().parents[3] / ".env"
+
+
 def _mask_key(key: str) -> str:
     """Return only the last 4 characters of an API key."""
     if not key:
         return ''
     return '****' + key[-4:] if len(key) > 4 else '****'
+
+
+def _set_env_var(name: str, value) -> None:
+    """Keep subprocess-visible environment in sync with runtime Config."""
+    text = "" if value is None else str(value)
+    if text:
+        os.environ[name] = text
+    else:
+        os.environ.pop(name, None)
+
+
+def _format_env_value(value) -> str:
+    """Format a value for a simple dotenv ``KEY=value`` assignment."""
+    text = "" if value is None else str(value)
+    if not text:
+        return ""
+    if re.search(r"\s|#", text):
+        return json.dumps(text, ensure_ascii=False)
+    return text
+
+
+def _replace_env_lines(existing: str, values: dict) -> str:
+    """Replace active dotenv assignments and append missing active keys."""
+    lines = existing.splitlines()
+    seen = set()
+
+    for idx, line in enumerate(lines):
+        for key, value in values.items():
+            if re.match(rf"^\s*{re.escape(key)}\s*=", line):
+                lines[idx] = f"{key}={_format_env_value(value)}"
+                seen.add(key)
+                break
+
+    missing = [key for key in values if key not in seen]
+    if missing:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append("# Runtime settings persisted by the Settings page")
+        for key in missing:
+            lines.append(f"{key}={_format_env_value(values[key])}")
+
+    return "\n".join(lines) + "\n"
+
+
+def _current_env_values() -> dict:
+    """Return the settings snapshot that should survive backend restarts."""
+    llm_key = Config.LLM_API_KEY or ""
+    wonderwall_key = Config.WONDERWALL_API_KEY or ""
+    return {
+        "LLM_PROVIDER": Config.LLM_PROVIDER,
+        "LLM_API_KEY": llm_key,
+        "LLM_BASE_URL": Config.LLM_BASE_URL,
+        "LLM_MODEL_NAME": Config.LLM_MODEL_NAME,
+        "SMART_PROVIDER": Config.SMART_PROVIDER,
+        "SMART_API_KEY": Config.SMART_API_KEY or "",
+        "SMART_BASE_URL": Config.SMART_BASE_URL,
+        "SMART_MODEL_NAME": Config.SMART_MODEL_NAME,
+        "NER_API_KEY": Config.NER_API_KEY or "",
+        "NER_BASE_URL": Config.NER_BASE_URL,
+        "NER_MODEL_NAME": Config.NER_MODEL_NAME,
+        "WONDERWALL_MODEL_NAME": Config.WONDERWALL_MODEL_NAME,
+        "WONDERWALL_BASE_URL": Config.WONDERWALL_BASE_URL,
+        "WONDERWALL_API_KEY": wonderwall_key,
+        "OPENAI_API_KEY": wonderwall_key or llm_key,
+        "OPENAI_API_BASE_URL": Config.WONDERWALL_BASE_URL or Config.LLM_BASE_URL,
+        "EMBEDDING_PROVIDER": Config.EMBEDDING_PROVIDER,
+        "EMBEDDING_MODEL": Config.EMBEDDING_MODEL,
+        "EMBEDDING_BASE_URL": Config.EMBEDDING_BASE_URL,
+        "EMBEDDING_API_KEY": Config.EMBEDDING_API_KEY or "",
+        "EMBEDDING_DIMENSIONS": Config.EMBEDDING_DIMENSIONS,
+        "WEB_SEARCH_MODEL": Config.WEB_SEARCH_MODEL,
+    }
+
+
+def _sync_process_env() -> None:
+    """Expose runtime settings to subprocesses such as Wonderwall/CAMEL."""
+    for key, value in _current_env_values().items():
+        _set_env_var(key, value)
+
+
+def _persist_env(values: dict | None = None, env_path: Path | None = None) -> None:
+    """Persist Settings-managed runtime config into the project .env file."""
+    path = env_path or _ENV_PATH
+    values = values or _current_env_values()
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    path.write_text(_replace_env_lines(existing, values), encoding="utf-8")
 
 
 # Preset blueprints mirror the .env.example Cloud / Local blocks.
@@ -45,13 +138,20 @@ _PRESETS = {
             'NER_BASE_URL': 'https://openrouter.ai/api/v1',
             'NER_MODEL_NAME': 'google/gemini-3-flash-preview',
             'WONDERWALL_MODEL_NAME': 'xiaomi/mimo-v2-flash',
+            'WONDERWALL_BASE_URL': 'https://openrouter.ai/api/v1',
             'EMBEDDING_PROVIDER': 'openai',
             'EMBEDDING_BASE_URL': 'https://openrouter.ai/api',
             'EMBEDDING_MODEL': 'openai/text-embedding-3-large',
             'EMBEDDING_DIMENSIONS': 768,
             'WEB_SEARCH_MODEL': 'google/gemini-3-flash-preview:online',
         },
-        'key_slots': ['LLM_API_KEY', 'SMART_API_KEY', 'NER_API_KEY', 'EMBEDDING_API_KEY'],
+        'key_slots': [
+            'LLM_API_KEY',
+            'SMART_API_KEY',
+            'NER_API_KEY',
+            'WONDERWALL_API_KEY',
+            'EMBEDDING_API_KEY',
+        ],
     },
     'local': {
         'label': 'Local — Ollama (free, self-hosted)',
@@ -68,6 +168,8 @@ _PRESETS = {
             'NER_MODEL_NAME': '',
             'NER_API_KEY': '',
             'WONDERWALL_MODEL_NAME': '',
+            'WONDERWALL_BASE_URL': '',
+            'WONDERWALL_API_KEY': '',
             'EMBEDDING_PROVIDER': 'ollama',
             'EMBEDDING_BASE_URL': 'http://localhost:11434',
             'EMBEDDING_MODEL': 'nomic-embed-text',
@@ -182,32 +284,32 @@ def update_settings():
     if llm.get('provider'): Config.LLM_PROVIDER = llm['provider']
     if llm.get('base_url') is not None: Config.LLM_BASE_URL = llm['base_url']
     if llm.get('model_name') is not None: Config.LLM_MODEL_NAME = llm['model_name']
-    if llm.get('api_key'): Config.LLM_API_KEY = llm['api_key']
+    if 'api_key' in llm: Config.LLM_API_KEY = llm['api_key']
 
     smart = body.get('smart') or {}
     if smart.get('provider') is not None: Config.SMART_PROVIDER = smart['provider']
     if smart.get('base_url') is not None: Config.SMART_BASE_URL = smart['base_url']
     if smart.get('model_name') is not None: Config.SMART_MODEL_NAME = smart['model_name']
-    if smart.get('api_key'): Config.SMART_API_KEY = smart['api_key']
+    if 'api_key' in smart: Config.SMART_API_KEY = smart['api_key']
 
     ner = body.get('ner') or {}
     if ner.get('base_url') is not None: Config.NER_BASE_URL = ner['base_url']
     if ner.get('model_name') is not None: Config.NER_MODEL_NAME = ner['model_name']
-    if ner.get('api_key'): Config.NER_API_KEY = ner['api_key']
+    if 'api_key' in ner: Config.NER_API_KEY = ner['api_key']
 
     wonderwall = body.get('wonderwall') or {}
     if wonderwall.get('model_name') is not None:
         Config.WONDERWALL_MODEL_NAME = wonderwall['model_name']
     if wonderwall.get('base_url') is not None:
         Config.WONDERWALL_BASE_URL = wonderwall['base_url']
-    if wonderwall.get('api_key'):
+    if 'api_key' in wonderwall:
         Config.WONDERWALL_API_KEY = wonderwall['api_key']
 
     embedding = body.get('embedding') or {}
     if embedding.get('provider') is not None: Config.EMBEDDING_PROVIDER = embedding['provider']
     if embedding.get('base_url') is not None: Config.EMBEDDING_BASE_URL = embedding['base_url']
     if embedding.get('model_name') is not None: Config.EMBEDDING_MODEL = embedding['model_name']
-    if embedding.get('api_key'): Config.EMBEDDING_API_KEY = embedding['api_key']
+    if 'api_key' in embedding: Config.EMBEDDING_API_KEY = embedding['api_key']
     if embedding.get('dimensions') is not None:
         try:
             Config.EMBEDDING_DIMENSIONS = int(embedding['dimensions'])
@@ -245,6 +347,16 @@ def update_settings():
         "Settings updated: preset=%s provider=%s model=%s base_url=%s",
         preset_id or '—', Config.LLM_PROVIDER, Config.LLM_MODEL_NAME, Config.LLM_BASE_URL,
     )
+
+    try:
+        _sync_process_env()
+        _persist_env()
+    except Exception as exc:
+        logger.error("Failed to persist settings to .env: %s", exc)
+        return jsonify({
+            'success': False,
+            'error': f"Settings updated in memory but could not be saved to .env: {exc}",
+        }), 500
 
     return jsonify({'success': True, 'data': _current_snapshot()})
 

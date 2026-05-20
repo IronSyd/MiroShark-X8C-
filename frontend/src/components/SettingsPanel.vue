@@ -112,7 +112,7 @@
               </button>
             </div>
             <div class="field-hint">
-              {{ $tr('Filled into every slot the preset needs (default, smart, NER, embedding). Leave blank to keep your existing keys.', '将填入预设所需的每个槽(default、smart、NER、embedding)。留空则保留现有密钥。') }}
+              {{ $tr('Filled into every slot the preset needs (default, smart, NER, Wonderwall, embedding). Leave blank to keep your existing keys.', '将填入预设所需的每个槽(default、smart、NER、Wonderwall、embedding)。留空则保留现有密钥。') }}
             </div>
           </div>
         </section>
@@ -879,31 +879,34 @@ const saveSettings = async () => {
   try {
     const payload = {}
 
-    // Preset is applied server-side first; explicit field overrides apply on top.
+    // Presets are saved as complete AI-slot templates. In custom mode, send
+    // explicit slot fields from the form.
     if (form.preset) {
       payload.preset = form.preset
       if (form.presetApiKey) payload.preset_api_key = form.presetApiKey
     }
 
-    payload.llm = {
-      provider: form.llm.provider,
-      base_url: form.llm.base_url,
-      model_name: form.llm.model_name,
-    }
-    if (form.llm.api_key) payload.llm.api_key = form.llm.api_key
+    if (!form.preset) {
+      payload.llm = {
+        provider: form.llm.provider,
+        base_url: form.llm.base_url,
+        model_name: form.llm.model_name,
+      }
+      if (form.llm.api_key) payload.llm.api_key = form.llm.api_key
 
-    payload.smart = { model_name: form.smart.model_name }
-    payload.ner = { model_name: form.ner.model_name }
-    payload.wonderwall = {
-      model_name: form.wonderwall.model_name,
-      base_url: form.wonderwall.base_url,
+      payload.smart = { model_name: form.smart.model_name }
+      payload.ner = { model_name: form.ner.model_name }
+      payload.wonderwall = {
+        model_name: form.wonderwall.model_name,
+        base_url: form.wonderwall.base_url,
+      }
+      if (form.wonderwall.api_key) payload.wonderwall.api_key = form.wonderwall.api_key
+      payload.embedding = {
+        provider: form.embedding.provider,
+        model_name: form.embedding.model_name,
+      }
+      payload.web_search_model = form.web_search_model
     }
-    if (form.wonderwall.api_key) payload.wonderwall.api_key = form.wonderwall.api_key
-    payload.embedding = {
-      provider: form.embedding.provider,
-      model_name: form.embedding.model_name,
-    }
-    payload.web_search_model = form.web_search_model
 
     payload.neo4j = {
       uri: form.neo4j.uri,

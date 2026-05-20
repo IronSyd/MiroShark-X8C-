@@ -286,8 +286,9 @@ class Config:
     def validate(cls):
         """Validate required configuration"""
         errors = []
-        if cls.LLM_PROVIDER != 'claude-code' and not cls.LLM_API_KEY:
-            errors.append("LLM_API_KEY is not configured")
+        # Allow the backend to boot without an LLM key so operators can open
+        # Settings and paste the key there. Actual LLM calls still fail fast in
+        # LLMClient until a key is configured.
         if not cls.NEO4J_URI:
             errors.append("NEO4J_URI is not configured")
         if not cls.NEO4J_PASSWORD:
