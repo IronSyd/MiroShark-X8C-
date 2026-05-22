@@ -431,6 +431,7 @@ const downloadComparison = () => {
     linear-gradient(180deg, #05030a 0%, #0a0518 100%);
   color: #f4f1ff;
   font-family: 'Geist Mono', ui-monospace, monospace;
+  overflow-x: hidden;
 }
 
 .cmp-header {
@@ -500,6 +501,7 @@ const downloadComparison = () => {
   flex-direction: column;
   gap: 6px;
   flex: 1;
+  min-width: 0;
 }
 .selector-label {
   font-size: 11px;
@@ -648,6 +650,7 @@ const downloadComparison = () => {
   background: #111;
   border: 1px solid #2A2A2A;
   border-radius: 8px;
+  min-width: 0;
 }
 .metric-card.sim-a { border-top: 3px solid #a78bfa; }
 .metric-card.sim-b { border-top: 3px solid #c4b5fd; }
@@ -667,7 +670,7 @@ const downloadComparison = () => {
 
 /* Leaderboard */
 .leaderboard-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.lb-col {}
+.lb-col { min-width: 0; }
 .lb-header {
   font-size: 11px;
   font-family: 'Geist Mono', monospace;
@@ -714,7 +717,7 @@ const downloadComparison = () => {
 .market-col-header { font-size: 11px; font-family: 'Geist Mono', monospace; margin-bottom: 8px; }
 .market-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 11px; }
 .market-id { color: #555; width: 60px; flex-shrink: 0; }
-.market-bar-wrap { flex: 1; height: 8px; background: #1A1A1A; border-radius: 4px; overflow: hidden; }
+.market-bar-wrap { flex: 1; min-width: 0; height: 8px; background: #1A1A1A; border-radius: 4px; overflow: hidden; }
 .market-bar { height: 100%; border-radius: 4px; transition: width 0.3s; }
 .market-price { width: 70px; text-align: right; color: #ccc; }
 
@@ -727,5 +730,76 @@ const downloadComparison = () => {
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+@media (max-width: 900px) {
+  .cmp-header,
+  .selector-bar,
+  .divergence-banner,
+  .chart-legend {
+    flex-wrap: wrap;
+  }
+
+  .cmp-header,
+  .selector-bar,
+  .cmp-results {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .header-center {
+    order: 3;
+    flex: 1 1 100%;
+  }
+
+  .selector-bar {
+    align-items: stretch;
+  }
+
+  .selector-group {
+    flex: 1 1 260px;
+  }
+
+  .metrics-row,
+  .leaderboard-compare,
+  .markets-compare {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .cmp-header {
+    gap: 10px;
+  }
+
+  .selector-bar {
+    flex-direction: column;
+  }
+
+  .vs-badge,
+  .compare-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cmp-section {
+    padding: 14px;
+  }
+
+  .lb-row {
+    grid-template-columns: 24px minmax(0, 1fr) 44px 32px;
+  }
+
+  .market-row {
+    flex-wrap: wrap;
+  }
+
+  .market-bar-wrap {
+    flex-basis: calc(100% - 138px);
+  }
 }
 </style>

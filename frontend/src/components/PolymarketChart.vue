@@ -574,6 +574,7 @@ onBeforeUnmount(() => {
 .pm-panel {
   width: 100%;
   height: 100%;
+  min-width: 0;
   background: var(--background);
   color: var(--foreground);
   display: flex;
@@ -587,6 +588,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 12px 16px;
   border-bottom: 1px solid rgba(10, 10, 10, 0.08);
   flex-shrink: 0;
@@ -595,7 +598,9 @@ onBeforeUnmount(() => {
 .pm-header-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
 }
 
 /* Header action cluster — mirrors .export-btn in InfluenceLeaderboard */
@@ -673,14 +678,16 @@ onBeforeUnmount(() => {
 .pm-body {
   flex: 1;
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
   overflow: hidden;
+  min-width: 0;
 }
 
 /* Market list — subtler separator, rows match .lb-row treatment */
 .pm-market-list {
   border-right: 1px solid rgba(10, 10, 10, 0.08);
   overflow-y: auto;
+  min-width: 0;
   padding: 0;
   background: var(--background);
 }
@@ -986,5 +993,22 @@ onBeforeUnmount(() => {
 .pm-market-list::-webkit-scrollbar-thumb,
 .pm-chart-section::-webkit-scrollbar-thumb {
   background: rgba(10, 10, 10, 0.2);
+}
+
+@media (max-width: 760px) {
+  .pm-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(160px, 34dvh) minmax(260px, 1fr);
+  }
+
+  .pm-market-list {
+    border-right: 0;
+    border-bottom: 1px solid rgba(10, 10, 10, 0.08);
+  }
+
+  .pm-header-title,
+  .pm-live-dot {
+    letter-spacing: 1.5px;
+  }
 }
 </style>

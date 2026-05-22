@@ -2967,4 +2967,42 @@ onUnmounted(() => {
   transform: scale(0.95) translateY(10px);
   opacity: 0;
 }
+
+@media (max-width: 900px) {
+  .action-group.dual,
+  .stats-grid,
+  .profiles-list,
+  .config-grid,
+  .agents-cards,
+  .param-group,
+  .platforms-grid,
+  .modal-info-grid,
+  .persona-dimensions {
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .action-group.dual,
+  .stats-grid,
+  .profiles-list,
+  .config-grid,
+  .agents-cards,
+  .param-group,
+  .platforms-grid,
+  .modal-info-grid,
+  .persona-dimensions {
+    grid-template-columns: 1fr;
+  }
+
+  .auto-value {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .auto-meta-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
 </style>

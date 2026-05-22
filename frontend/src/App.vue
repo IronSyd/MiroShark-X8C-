@@ -91,7 +91,13 @@ const showFooter = computed(() => route.name !== 'Embed')
   box-sizing: border-box;
 }
 
-html, body, #app {
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  overflow-x: hidden;
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -138,6 +144,61 @@ html, body, #app {
     radial-gradient(1px 1px at 3% 76%, rgba(255, 255, 255, 0.6), transparent 50%);
   background-size: 100% 100%;
   animation: twinkle 6s ease-in-out infinite alternate;
+}
+
+#app {
+  min-height: 100dvh;
+}
+
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
+}
+
+input,
+textarea,
+select,
+button {
+  min-width: 0;
+}
+
+.main-view,
+.content-area,
+.panel-wrapper,
+.report-panel,
+.interaction-panel,
+.main-split-layout,
+.left-panel,
+.right-panel,
+.chat-container,
+.survey-container,
+.comparison-page,
+.explore-page,
+.embed-page,
+.replay-page,
+.settings-modal,
+.debug-panel {
+  min-width: 0;
+}
+
+.content-area,
+.panel-wrapper,
+.main-split-layout,
+.left-panel,
+.right-panel {
+  max-width: 100%;
+}
+
+.main-view .content-area > .panel-wrapper[style*="width: 0%"] {
+  flex: 0 0 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* ── Text Selection ── */
@@ -550,4 +611,128 @@ textarea:focus-visible {
 .animate-fade-in { animation: fade-in 0.5s ease-out; }
 .animate-shimmer { animation: shimmer 2s ease-in-out infinite; }
 .animate-pulse-border { animation: pulse-border 2s ease-in-out infinite; }
+
+@media (max-width: 1024px) {
+  .main-view .app-header {
+    height: auto !important;
+    min-height: 60px;
+    padding: 8px 12px !important;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-content: center;
+  }
+
+  .main-view .header-center {
+    position: static !important;
+    transform: none !important;
+    order: 3;
+    flex: 1 1 100%;
+    display: flex;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .main-view .header-right,
+  .main-view .workflow-step,
+  .main-view .status-indicator {
+    min-width: 0;
+  }
+
+  .main-view .header-right {
+    gap: 8px !important;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .main-view .view-switcher {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .main-view .switch-btn {
+    flex: 0 0 auto;
+    padding: 6px 10px !important;
+    letter-spacing: 1.5px !important;
+  }
+
+  .main-view .step-name,
+  .main-view .step-num,
+  .main-view .status-indicator {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 767px) {
+  .main-view {
+    height: 100dvh !important;
+  }
+
+  .main-view .brand {
+    font-size: 15px !important;
+    letter-spacing: 2px !important;
+  }
+
+  .main-view .content-area {
+    flex-direction: column;
+    overflow-y: auto !important;
+    min-height: 0;
+  }
+
+  .main-view .content-area > .panel-wrapper[style*="width: 50%"] {
+    width: 100% !important;
+    height: auto;
+    min-height: 50dvh;
+    flex: 0 0 auto;
+  }
+
+  .main-view .content-area > .panel-wrapper[style*="width: 0%"] {
+    width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+    flex: 0 0 0 !important;
+  }
+
+  .main-view .content-area > .panel-wrapper[style*="width: 100%"] {
+    width: 100% !important;
+    min-height: calc(100dvh - 112px);
+  }
+
+  .main-view .panel-wrapper.left {
+    border-right: 0 !important;
+    border-bottom: var(--border-light);
+  }
+
+  .main-view .step-divider {
+    display: none;
+  }
+
+  .settings-modal,
+  .debug-panel,
+  .embed-modal,
+  .profile-popup {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .metrics-row,
+  .metric-grid,
+  .leaderboard-compare,
+  .markets-compare,
+  .gallery-grid,
+  .template-grid,
+  .source-grid,
+  .config-grid,
+  .strategy-grid,
+  .agents-grid,
+  .tools-grid,
+  .ai-tool,
+  .topic-grid,
+  .suggestions-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
 </style>

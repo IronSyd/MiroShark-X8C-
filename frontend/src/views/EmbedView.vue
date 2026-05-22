@@ -299,6 +299,7 @@ onMounted(() => {
 
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   height: 100vh;
   min-height: 220px;
   padding: 16px 18px;
@@ -438,6 +439,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 6px;
   min-height: 80px;
+  min-width: 0;
 }
 
 .embed-chart {
@@ -493,6 +495,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   padding-top: 6px;
   border-top: 1px solid var(--border);
@@ -508,7 +511,7 @@ onMounted(() => {
 }
 
 .embed-consensus {
-  white-space: nowrap;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 55ch;
@@ -536,5 +539,25 @@ onMounted(() => {
 .embed-footer-link strong {
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+@media (max-width: 520px) {
+  .embed-widget {
+    height: 100dvh;
+    padding: 12px;
+    border-radius: 0;
+  }
+
+  .embed-scenario {
+    white-space: normal;
+  }
+
+  .embed-footer {
+    align-items: flex-start;
+  }
+
+  .embed-footer-link {
+    white-space: normal;
+  }
 }
 </style>

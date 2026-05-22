@@ -812,8 +812,10 @@ const getFileType = (filename) => {
 // Get file type label text
 const getFileTypeLabel = (filename) => {
   if (!filename) return tr('FILE', '文件')
-  const ext = filename.split('.').pop()?.toUpperCase()
-  return ext || tr('FILE', '文件')
+  const parts = filename.split('.')
+  if (parts.length < 2) return tr('FILE', '文件')
+  const ext = parts.pop()?.toUpperCase()
+  return ext && ext.length <= 8 ? ext : tr('FILE', '文件')
 }
 
 // Build a clickable URL for an associated file:
@@ -1419,6 +1421,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* More files hint */
@@ -1444,6 +1448,8 @@ onUnmounted(() => {
   border-radius: 8px;
   background: linear-gradient(180deg, rgba(80,60,140,0.32) 0%, rgba(28,18,58,0.5) 100%);
   transition: all 0.2s ease;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .file-item:hover {
@@ -1458,6 +1464,7 @@ onUnmounted(() => {
   justify-content: center;
   height: 16px;
   padding: 0 4px;
+  max-width: 64px;
   font-family: var(--font-mono);
   font-size: 0.55rem;
   font-weight: 600;
@@ -1466,6 +1473,9 @@ onUnmounted(() => {
   letter-spacing: 3px;
   flex-shrink: 0;
   min-width: 28px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border: 1px solid rgba(10, 10, 10, 0.08);
 }
 
@@ -1484,6 +1494,8 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   font-size: 11px;
   color: rgba(244, 241, 255, 0.8);
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1692,6 +1704,7 @@ onUnmounted(() => {
   overflow-x: hidden;
   border: 2px solid rgba(10, 10, 10, 0.12);
   font-family: var(--font-mono);
+  min-width: 0;
 }
 
 /* Animation transition */
@@ -1728,6 +1741,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 22px 34px;
   border-bottom: 2px solid rgba(10, 10, 10, 0.08);
   background: #110a26;
@@ -1736,7 +1750,9 @@ onUnmounted(() => {
 .modal-title-section {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
+  min-width: 0;
 }
 
 .modal-id {
@@ -1945,6 +1961,7 @@ onUnmounted(() => {
   transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
+  min-width: 0;
 }
 
 .modal-btn:hover:not(:disabled) {
@@ -2738,5 +2755,47 @@ onUnmounted(() => {
   background: rgba(10,10,10,0.03);
   border: 1px solid rgba(10,10,10,0.06);
   margin-bottom: 4px;
+}
+
+@media (max-width: 640px) {
+  .modal-overlay {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .modal-content {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 24px);
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-actions,
+  .modal-divider {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .modal-header {
+    flex-wrap: wrap;
+  }
+
+  .modal-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .divider-text {
+    white-space: normal;
+  }
+
+  .quality-metric {
+    flex-wrap: wrap;
+  }
+
+  .metric-label {
+    width: auto;
+    min-width: 120px;
+  }
 }
 </style>

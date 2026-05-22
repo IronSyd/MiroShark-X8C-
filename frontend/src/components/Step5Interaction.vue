@@ -1,5 +1,5 @@
 <template>
-  <div class="interaction-panel">
+  <div class="interaction-panel" :class="{ 'chat-focus-mode': isChatFocusMode }">
     <!-- Main Split Layout -->
     <div class="main-split-layout">
       <!-- LEFT PANEL: Report Style -->
@@ -10,6 +10,28 @@
             <div class="report-meta">
               <span class="report-tag">{{ $tr('Prediction Report', '预测报告') }}</span>
               <span class="report-id">ID: {{ reportId || 'REF-2024-X92' }}</span>
+            </div>
+            <div class="report-header-actions">
+              <button
+                type="button"
+                class="report-export-btn"
+                @click="downloadReportMarkdownFile"
+                :disabled="!reportId || reportExporting"
+                :aria-label="$tr('Download report Markdown', '下载报告 Markdown')"
+                :title="$tr('Download report Markdown', '下载报告 Markdown')"
+              >
+                <span>{{ reportExporting === 'markdown' ? $tr('Exporting...', 'Exporting...') : $tr('Markdown', 'Markdown') }}</span>
+              </button>
+              <button
+                type="button"
+                class="report-export-btn report-export-btn-primary"
+                @click="printReportPdf"
+                :disabled="!reportId || reportExporting"
+                :aria-label="$tr('Print or save report as PDF', '打印或保存报告为 PDF')"
+                :title="$tr('Print or save report as PDF', '打印或保存报告为 PDF')"
+              >
+                <span>{{ reportExporting === 'pdf' ? $tr('Preparing...', 'Preparing...') : $tr('PDF', 'PDF') }}</span>
+              </button>
             </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
             <p class="sub-title">{{ reportOutline.summary }}</p>
@@ -157,13 +179,43 @@
                 <div class="tools-card-name">{{ $tr('Report Agent - Chat', '报告智能体 - 对话') }}</div>
                 <div class="tools-card-subtitle">{{ $tr('Quick chat version of the report generation agent. Can call 4 professional tools. Has complete MiroShark memory', '报告生成智能体的快速对话版本。可调用 4 个专业工具,具备完整的 MiroShark 记忆') }}</div>
               </div>
-              <button class="tools-card-toggle" @click="showToolsDetail = !showToolsDetail">
-                <svg :class="{ 'is-expanded': showToolsDetail }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </button>
+              <div class="tools-card-actions">
+                <button
+                  class="tools-card-toggle chat-focus-toggle"
+                  :class="{ active: isChatFocusMode }"
+                  @click="toggleChatFocusMode"
+                  :aria-label="chatFocusLabel"
+                  :title="chatFocusLabel"
+                  :aria-pressed="isChatFocusMode"
+                >
+                  <svg v-if="!isChatFocusMode" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <polyline points="9 21 3 21 3 15"></polyline>
+                    <line x1="21" y1="3" x2="14" y2="10"></line>
+                    <line x1="3" y1="21" x2="10" y2="14"></line>
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="4 14 10 14 10 20"></polyline>
+                    <polyline points="20 10 14 10 14 4"></polyline>
+                    <line x1="14" y1="10" x2="21" y2="3"></line>
+                    <line x1="3" y1="21" x2="10" y2="14"></line>
+                  </svg>
+                </button>
+                <button
+                  class="tools-card-toggle"
+                  @click="showToolsDetail = !showToolsDetail"
+                  :aria-expanded="showReportAgentToolsBody"
+                  :disabled="isChatFocusMode"
+                  :title="showToolsDetail ? $tr('Collapse tools', '收起工具') : $tr('Expand tools', '展开工具')"
+                  :aria-label="showToolsDetail ? $tr('Collapse tools', '收起工具') : $tr('Expand tools', '展开工具')"
+                >
+                  <svg :class="{ 'is-expanded': showReportAgentToolsBody }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div v-if="showToolsDetail" class="tools-card-body">
+            <div v-if="showReportAgentToolsBody" class="tools-card-body">
               <div class="tools-grid">
                 <div class="tool-item tool-purple">
                   <div class="tool-icon-wrapper">
@@ -484,9 +536,15 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { chatWithReport, getReport, getAgentLog } from '../api/report'
+import { chatWithReport, downloadReportMarkdown, getReport, getAgentLog } from '../api/report'
 import { interviewAgents, getSimulationProfilesRealtime, getSimulationActions } from '../api/simulation'
 import { renderMarkdown } from '../utils/markdown'
+import {
+  downloadBlob,
+  openPrintWindow,
+  reportDownloadFilename,
+  writeReportPrintDocument
+} from '../utils/reportExport'
 import { tr } from '../i18n'
 
 const props = defineProps({
@@ -554,6 +612,9 @@ const selectedAgent = ref(null)
 const selectedAgentIndex = ref(null)
 const showFullProfile = ref(true)
 const showToolsDetail = ref(true)
+const isChatFocusMode = ref(false)
+const showReportAgentToolsBody = computed(() => showToolsDetail.value && !isChatFocusMode.value)
+const chatFocusLabel = computed(() => isChatFocusMode.value ? tr('Exit chat focus', '退出聊天焦点') : tr('Expand chat', '展开聊天'))
 
 // Chat State
 const chatInput = ref('')
@@ -575,6 +636,7 @@ const generatedSections = ref({})
 const collapsedSections = ref(new Set())
 const currentSectionIndex = ref(null)
 const profiles = ref([])
+const reportExporting = ref(false)
 
 // Helper Methods
 const isSectionCompleted = (sectionIndex) => {
@@ -588,6 +650,43 @@ const rightPanel = ref(null)
 // Methods
 const addLog = (msg) => {
   emit('add-log', msg)
+}
+
+const logReportExportError = (err) => {
+  const message = err?.message || String(err)
+  console.error('Report export failed:', err)
+  addLog(`${tr('Report export failed', 'Report export failed')}: ${message}`)
+}
+
+const downloadReportMarkdownFile = async () => {
+  if (!props.reportId || reportExporting.value) return
+  reportExporting.value = 'markdown'
+  try {
+    const blob = await downloadReportMarkdown(props.reportId)
+    downloadBlob(blob, reportDownloadFilename(props.reportId, 'md'))
+    addLog(tr('Report Markdown exported', 'Report Markdown exported'))
+  } catch (err) {
+    logReportExportError(err)
+  } finally {
+    reportExporting.value = false
+  }
+}
+
+const printReportPdf = async () => {
+  if (!props.reportId || reportExporting.value) return
+  let printWindow = null
+  try {
+    printWindow = openPrintWindow(props.reportId)
+    reportExporting.value = 'pdf'
+    const res = await getReport(props.reportId)
+    writeReportPrintDocument(printWindow, res.data || res, props.reportId)
+    addLog(tr('Report PDF print view opened', 'Report PDF print view opened'))
+  } catch (err) {
+    if (printWindow && !printWindow.closed) printWindow.close()
+    logReportExportError(err)
+  } finally {
+    reportExporting.value = false
+  }
 }
 
 const toggleSectionCollapse = (idx) => {
@@ -634,6 +733,7 @@ const selectReportAgentChat = () => {
 }
 
 const selectSurveyTab = () => {
+  exitChatFocusMode()
   activeTab.value = 'survey'
   selectedAgent.value = null
   selectedAgentIndex.value = null
@@ -641,6 +741,7 @@ const selectSurveyTab = () => {
 }
 
 const toggleAgentDropdown = () => {
+  exitChatFocusMode()
   showAgentDropdown.value = !showAgentDropdown.value
   if (showAgentDropdown.value) {
     activeTab.value = 'chat'
@@ -649,6 +750,7 @@ const toggleAgentDropdown = () => {
 }
 
 const selectAgent = (agent, idx) => {
+  exitChatFocusMode()
   // Save current chat records
   saveChatHistory()
 
@@ -813,6 +915,19 @@ const scrollToBottom = () => {
       chatMessages.value.scrollTop = chatMessages.value.scrollHeight
     }
   })
+}
+
+const toggleChatFocusMode = () => {
+  isChatFocusMode.value = !isChatFocusMode.value
+  showAgentDropdown.value = false
+  scrollToBottom()
+}
+
+const exitChatFocusMode = () => {
+  if (isChatFocusMode.value) {
+    isChatFocusMode.value = false
+    scrollToBottom()
+  }
 }
 
 // Survey Methods
@@ -1018,18 +1133,20 @@ watch(() => props.simulationId, (newId) => {
   flex: 1;
   display: flex;
   overflow: hidden;
+  min-width: 0;
 }
 
 /* Left Panel - Report Style (Same as Step4Report.vue) */
 .left-panel.report-style {
-  width: 45%;
-  min-width: 450px;
+  flex: 0 1 clamp(340px, 35vw, 680px);
+  width: auto;
+  min-width: 320px;
   background: #110a26;
-  border-right: 2px solid rgba(10,10,10,0.12);
+  border-right: 2px solid rgba(244,241,255,0.17);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 34px 56px 56px 56px;
+  padding: 34px clamp(22px, 3vw, 56px) 56px;
 }
 
 .left-panel::-webkit-scrollbar {
@@ -1067,6 +1184,7 @@ watch(() => props.simulationId, (newId) => {
 .report-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 11px;
   margin-bottom: 22px;
 }
@@ -1088,6 +1206,52 @@ watch(() => props.simulationId, (newId) => {
   color: rgba(244, 241, 255,0.4);
   font-weight: 500;
   letter-spacing: 0.02em;
+}
+
+.report-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -8px 0 22px;
+}
+
+.report-export-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 7px 11px;
+  border: 2px solid rgba(10,10,10,0.1);
+  background: #FAFAFA;
+  color: rgba(10,10,10,0.62);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+
+.report-export-btn:hover:not(:disabled) {
+  border-color: rgba(10,10,10,0.22);
+  color: #0A0A0A;
+}
+
+.report-export-btn-primary {
+  background: #0A0A0A;
+  border-color: #0A0A0A;
+  color: #FAFAFA;
+}
+
+.report-export-btn-primary:hover:not(:disabled) {
+  background: rgba(10,10,10,0.78);
+  border-color: rgba(10,10,10,0.78);
+  color: #FAFAFA;
+}
+
+.report-export-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .main-title {
@@ -1173,6 +1337,7 @@ watch(() => props.simulationId, (newId) => {
   color: #f4f1ff;
   margin: 0;
   transition: color 0.3s ease;
+  min-width: 0;
 }
 
 /* States */
@@ -1345,6 +1510,36 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   flex-direction: column;
   background: #110a26;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.interaction-panel.chat-focus-mode .left-panel.report-style {
+  display: none;
+}
+
+.interaction-panel.chat-focus-mode,
+.interaction-panel.chat-focus-mode .main-split-layout {
+  min-height: 0;
+}
+
+.interaction-panel.chat-focus-mode .right-panel {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+}
+
+.interaction-panel.chat-focus-mode .chat-container {
+  min-height: 0;
+}
+
+.interaction-panel.chat-focus-mode .chat-messages {
+  min-height: 0;
+}
+
+.interaction-panel.chat-focus-mode .message-content {
+  max-width: min(900px, 82%);
 }
 
 /* Action Bar - Professional Design */
@@ -1352,10 +1547,11 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   padding: 11px 22px;
   border-bottom: 2px solid rgba(10,10,10,0.12);
   background: #110a26;
-  gap: 22px;
+  gap: 11px 22px;
   position: relative;
   z-index: 20;
   overflow: visible;
@@ -1365,7 +1561,8 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   align-items: center;
   gap: 11px;
-  min-width: 160px;
+  min-width: 0;
+  flex: 0 1 220px;
 }
 
 .action-bar-icon {
@@ -1377,6 +1574,7 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .action-bar-title {
@@ -1402,7 +1600,9 @@ watch(() => props.simulationId, (newId) => {
   align-items: center;
   gap: 6px;
   flex: 1;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 240px;
 }
 
 .tab-pill {
@@ -1420,7 +1620,15 @@ watch(() => props.simulationId, (newId) => {
   transition: all 0.2s ease;
   white-space: nowrap;
   text-transform: uppercase;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tab-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tab-pill:hover {
@@ -1450,7 +1658,7 @@ watch(() => props.simulationId, (newId) => {
 }
 
 .agent-pill {
-  width: 200px;
+  width: clamp(150px, 18vw, 200px);
   justify-content: space-between;
 }
 
@@ -1527,12 +1735,15 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* Report Agent Tools Card */
 .report-agent-tools-card {
   border-bottom: 2px solid rgba(10,10,10,0.12);
   background: var(--color-gray, #1a0f3a);
+  min-width: 0;
 }
 
 .tools-card-header {
@@ -1540,6 +1751,7 @@ watch(() => props.simulationId, (newId) => {
   align-items: center;
   gap: 11px;
   padding: 11px 22px;
+  min-width: 0;
 }
 
 .tools-card-avatar {
@@ -1574,6 +1786,9 @@ watch(() => props.simulationId, (newId) => {
   font-size: 12px;
   font-family: var(--font-mono);
   color: rgba(244, 241, 255,0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tools-card-toggle {
@@ -1590,9 +1805,26 @@ watch(() => props.simulationId, (newId) => {
   flex-shrink: 0;
 }
 
+.tools-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .tools-card-toggle:hover {
   background: var(--color-gray, #1a0f3a);
   border-color: rgba(244, 241, 255,0.12);
+}
+
+.tools-card-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.tools-card-toggle:disabled:hover {
+  background: #FAFAFA;
+  border-color: rgba(10,10,10,0.08);
 }
 
 .tools-card-toggle svg {
@@ -1603,14 +1835,26 @@ watch(() => props.simulationId, (newId) => {
   transform: rotate(180deg);
 }
 
+.chat-focus-toggle.active {
+  background: #0A0A0A;
+  color: #FAFAFA;
+  border-color: #0A0A0A;
+}
+
+.chat-focus-toggle.active:hover {
+  background: rgba(10,10,10,0.78);
+  border-color: rgba(10,10,10,0.78);
+}
+
 .tools-card-body {
   padding: 0 22px 22px 22px;
 }
 
 .tools-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: 11px;
+  min-width: 0;
 }
 
 .tool-item {
@@ -1620,6 +1864,7 @@ watch(() => props.simulationId, (newId) => {
   background: #110a26;
   border: 2px solid rgba(10,10,10,0.08);
   transition: all 0.2s ease;
+  min-width: 0;
 }
 
 .tool-item:hover {
@@ -1667,6 +1912,7 @@ watch(() => props.simulationId, (newId) => {
   font-weight: 600;
   color: #f4f1ff;
   margin-bottom: 4px;
+  overflow-wrap: anywhere;
 }
 
 .tool-desc {
@@ -1957,6 +2203,8 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   flex-direction: column;
   gap: 22px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .chat-empty {
@@ -2016,6 +2264,7 @@ watch(() => props.simulationId, (newId) => {
 
 .message-content {
   max-width: 70%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2053,6 +2302,7 @@ watch(() => props.simulationId, (newId) => {
   font-size: 14px;
   line-height: 1.5;
   border: 2px solid rgba(10,10,10,0.08);
+  overflow-wrap: anywhere;
 }
 
 .chat-message.user .message-text {
@@ -2144,10 +2394,12 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   gap: 11px;
   align-items: flex-end;
+  min-width: 0;
 }
 
 .chat-input {
   flex: 1;
+  min-width: 0;
   padding: 12px 18px;
   font-size: 14px;
   color: #f4f1ff;
@@ -2210,6 +2462,7 @@ watch(() => props.simulationId, (newId) => {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  min-width: 0;
 }
 
 .survey-setup {
@@ -2908,4 +3161,111 @@ watch(() => props.simulationId, (newId) => {
 .modal-enter-active { transition: opacity 0.2s; }
 .modal-leave-active { transition: opacity 0.15s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
+
+@media (max-width: 1180px) {
+  .main-split-layout {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .left-panel.report-style {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-height: 42dvh;
+    border-right: 0;
+    border-bottom: 2px solid rgba(10,10,10,0.12);
+  }
+
+  .right-panel {
+    flex: 1 0 58dvh;
+    min-height: 520px;
+  }
+
+  .action-bar {
+    align-items: flex-start;
+  }
+
+  .action-bar-tabs {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .interaction-panel {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .left-panel.report-style {
+    max-height: none;
+    padding: 22px;
+  }
+
+  .main-title {
+    font-size: 30px;
+  }
+
+  .sub-title {
+    font-size: 15px;
+  }
+
+  .section-title {
+    font-size: 20px;
+  }
+
+  .section-body {
+    padding-left: 0;
+  }
+
+  .right-panel {
+    min-height: 620px;
+  }
+
+  .action-bar,
+  .tools-card-header,
+  .tools-card-body,
+  .chat-messages,
+  .chat-input-area,
+  .survey-setup {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .action-bar-header {
+    flex-basis: 100%;
+  }
+
+  .tab-pill {
+    flex: 1 1 160px;
+    justify-content: center;
+    letter-spacing: 1.2px;
+  }
+
+  .agent-dropdown {
+    flex: 1 1 160px;
+  }
+
+  .agent-pill {
+    width: 100%;
+  }
+
+  .tab-divider {
+    display: none;
+  }
+
+  .tools-card-subtitle {
+    white-space: normal;
+  }
+
+  .message-content {
+    max-width: min(82%, 560px);
+  }
+
+  .profile-popup {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+  }
+}
 </style>

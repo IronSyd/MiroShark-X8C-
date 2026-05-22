@@ -11,6 +11,28 @@
               <span class="report-tag">{{ $tr('Prediction Report', '预测报告') }}</span>
               <span class="report-id copyable" @click="copyReportId">ID: {{ reportId || 'REF-2024-X92' }}</span>
             </div>
+            <div class="report-header-actions">
+              <button
+                type="button"
+                class="report-export-btn"
+                @click="downloadReportMarkdownFile"
+                :disabled="!reportId || reportExporting"
+                :aria-label="$tr('Download report Markdown', '下载报告 Markdown')"
+                :title="$tr('Download report Markdown', '下载报告 Markdown')"
+              >
+                <span>{{ reportExporting === 'markdown' ? $tr('Exporting...', 'Exporting...') : $tr('Markdown', 'Markdown') }}</span>
+              </button>
+              <button
+                type="button"
+                class="report-export-btn report-export-btn-primary"
+                @click="printReportPdf"
+                :disabled="!reportId || reportExporting"
+                :aria-label="$tr('Print or save report as PDF', '打印或保存报告为 PDF')"
+                :title="$tr('Print or save report as PDF', '打印或保存报告为 PDF')"
+              >
+                <span>{{ reportExporting === 'pdf' ? $tr('Preparing...', 'Preparing...') : $tr('PDF', 'PDF') }}</span>
+              </button>
+            </div>
             <h1 class="main-title">{{ reportOutline.title }}</h1>
             <p class="sub-title">{{ reportOutline.summary }}</p>
             <div class="header-divider"></div>
@@ -144,7 +166,7 @@
                 <polyline points="7 10 12 15 17 10"></polyline>
                 <line x1="12" y1="15" x2="12" y2="3"></line>
               </svg>
-              <span>{{ isExporting === 'json' ? $tr('Exporting...', '导出中...') : $tr('Export JSON', '导出 JSON') }}</span>
+              <span>{{ isExporting === 'json' ? $tr('Exporting...', '导出中...') : $tr('Simulation JSON', '模拟 JSON') }}</span>
             </button>
             <button class="export-btn" @click="downloadExport('csv')" :disabled="isExporting">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
@@ -152,7 +174,7 @@
                 <polyline points="7 10 12 15 17 10"></polyline>
                 <line x1="12" y1="15" x2="12" y2="3"></line>
               </svg>
-              <span>{{ isExporting === 'csv' ? $tr('Exporting...', '导出中...') : $tr('Export CSV', '导出 CSV') }}</span>
+              <span>{{ isExporting === 'csv' ? $tr('Exporting...', '导出中...') : $tr('Simulation CSV', '模拟 CSV') }}</span>
             </button>
           </div>
 
@@ -428,9 +450,15 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { getAgentLog, getConsoleLog, generateReport } from '../api/report'
+import { downloadReportMarkdown, generateReport, getAgentLog, getConsoleLog, getReport } from '../api/report'
 import { exportSimulationData } from '../api/simulation'
 import { renderMarkdown } from '../utils/markdown'
+import {
+  downloadBlob,
+  openPrintWindow,
+  reportDownloadFilename,
+  writeReportPrintDocument
+} from '../utils/reportExport'
 import { truncate as truncateText } from '../utils/text'
 import { tr } from '../i18n'
 
@@ -509,6 +537,44 @@ const expandedLogs = ref(new Set())
 const collapsedSections = ref(new Set())
 const isComplete = ref(false)
 const isExporting = ref(false)
+const reportExporting = ref(false)
+
+const logReportExportError = (err) => {
+  const message = err?.message || String(err)
+  console.error('Report export failed:', err)
+  addLog(`${tr('Report export failed', 'Report export failed')}: ${message}`)
+}
+
+const downloadReportMarkdownFile = async () => {
+  if (!props.reportId || reportExporting.value) return
+  reportExporting.value = 'markdown'
+  try {
+    const blob = await downloadReportMarkdown(props.reportId)
+    downloadBlob(blob, reportDownloadFilename(props.reportId, 'md'))
+    addLog(tr('Report Markdown exported', 'Report Markdown exported'))
+  } catch (err) {
+    logReportExportError(err)
+  } finally {
+    reportExporting.value = false
+  }
+}
+
+const printReportPdf = async () => {
+  if (!props.reportId || reportExporting.value) return
+  let printWindow = null
+  try {
+    printWindow = openPrintWindow(props.reportId)
+    reportExporting.value = 'pdf'
+    const res = await getReport(props.reportId)
+    writeReportPrintDocument(printWindow, res.data || res, props.reportId)
+    addLog(tr('Report PDF print view opened', 'Report PDF print view opened'))
+  } catch (err) {
+    if (printWindow && !printWindow.closed) printWindow.close()
+    logReportExportError(err)
+  } finally {
+    reportExporting.value = false
+  }
+}
 
 // Export simulation data as JSON or CSV
 const downloadExport = async (format) => {
@@ -2224,6 +2290,7 @@ watch(() => props.reportId, (newId) => {
   flex: 1;
   display: flex;
   overflow: hidden;
+  min-width: 0;
 }
 
 /* Panel Headers */
@@ -2327,14 +2394,15 @@ watch(() => props.reportId, (newId) => {
 
 /* Left Panel - Report Style */
 .left-panel.report-style {
-  width: 45%;
-  min-width: 450px;
+  flex: 0 1 clamp(340px, 35vw, 680px);
+  width: auto;
+  min-width: 320px;
   background: #110a26;
   border-right: 2px solid rgba(244,241,255,0.17);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 34px 56px 56px 56px;
+  padding: 34px clamp(22px, 3vw, 56px) 56px;
 }
 
 .left-panel::-webkit-scrollbar {
@@ -2372,6 +2440,7 @@ watch(() => props.reportId, (newId) => {
 .report-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 11px;
   margin-bottom: 22px;
 }
@@ -2406,6 +2475,52 @@ watch(() => props.reportId, (newId) => {
 
 .report-id.copyable:active {
   color: #c4b5fd;
+}
+
+.report-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -8px 0 22px;
+}
+
+.report-export-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 7px 11px;
+  border: 2px solid rgba(10,10,10,0.1);
+  background: #FAFAFA;
+  color: rgba(10,10,10,0.62);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+
+.report-export-btn:hover:not(:disabled) {
+  border-color: rgba(10,10,10,0.22);
+  color: #0A0A0A;
+}
+
+.report-export-btn-primary {
+  background: #0A0A0A;
+  border-color: #0A0A0A;
+  color: #FAFAFA;
+}
+
+.report-export-btn-primary:hover:not(:disabled) {
+  background: rgba(10,10,10,0.78);
+  border-color: rgba(10,10,10,0.78);
+  color: #FAFAFA;
+}
+
+.report-export-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .main-title {
@@ -2490,6 +2605,7 @@ watch(() => props.reportId, (newId) => {
   color: #f4f1ff;
   margin: 0;
   transition: color 0.3s ease;
+  min-width: 0;
 }
 
 /* States */
@@ -2690,6 +2806,7 @@ watch(() => props.reportId, (newId) => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 
   /* Functional palette (low saturation, status-based) */
   --wf-border: rgba(244,241,255,0.17);
@@ -5259,4 +5376,73 @@ watch(() => props.reportId, (newId) => {
 .log-msg.error { color: #FF4444; }
 .log-msg.warning { color: #FFB347; }
 .log-msg.success { color: #c4b5fd; }
+
+@media (max-width: 1180px) {
+  .main-split-layout {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .left-panel.report-style {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-height: 42dvh;
+    border-right: 0;
+    border-bottom: 2px solid rgba(10,10,10,0.12);
+  }
+
+  .right-panel {
+    flex: 1 0 58dvh;
+    min-height: 520px;
+  }
+}
+
+@media (max-width: 767px) {
+  .report-panel {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .left-panel.report-style {
+    max-height: none;
+    padding: 22px;
+  }
+
+  .main-title {
+    font-size: 30px;
+  }
+
+  .sub-title {
+    font-size: 15px;
+  }
+
+  .section-title {
+    font-size: 20px;
+  }
+
+  .section-body {
+    padding-left: 0;
+  }
+
+  .right-panel {
+    min-height: 620px;
+  }
+
+  .panel-header,
+  .workflow-overview,
+  .timeline-container,
+  .console-logs {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .header-title {
+    white-space: normal;
+  }
+
+  .header-meta {
+    margin-left: 0;
+  }
+}
 </style>

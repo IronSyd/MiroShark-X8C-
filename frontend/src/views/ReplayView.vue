@@ -480,6 +480,7 @@ onUnmounted(() => {
   color: #f4f1ff;
   overflow: hidden;
   font-family: var(--font-display);
+  min-width: 0;
 }
 
 /* Header */
@@ -599,6 +600,7 @@ onUnmounted(() => {
 .playback-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
@@ -622,6 +624,7 @@ onUnmounted(() => {
 
 .speed-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
@@ -657,6 +660,7 @@ onUnmounted(() => {
   align-items: baseline;
   gap: 4px;
   margin-left: auto;
+  min-width: 0;
 }
 
 .round-label {
@@ -742,6 +746,7 @@ onUnmounted(() => {
 .playback-stats {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   font-family: var(--font-mono);
   font-size: 10px;
@@ -792,6 +797,7 @@ onUnmounted(() => {
   position: relative;
   min-height: 100%;
   max-width: 900px;
+  min-width: 0;
   margin: 0 auto;
 }
 
@@ -869,6 +875,7 @@ onUnmounted(() => {
   border: 2px solid rgba(10,10,10,0.08);
   position: relative;
   transition: all 0.2s;
+  min-width: 0;
 }
 
 .timeline-card:hover { border-color: #a78bfa; }
@@ -889,6 +896,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 11px;
+  min-width: 0;
 }
 
 .avatar-placeholder {
@@ -916,6 +924,8 @@ onUnmounted(() => {
 .header-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -1049,5 +1059,65 @@ onUnmounted(() => {
   background: #110a26;
   color: rgba(244, 241, 255,0.7);
   cursor: pointer;
+}
+
+@media (max-width: 767px) {
+  .replay-view {
+    height: 100dvh;
+  }
+
+  .app-header {
+    height: auto;
+    min-height: 60px;
+    padding: 8px 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .header-center {
+    position: static;
+    transform: none;
+    order: 3;
+    flex: 1 1 100%;
+    text-align: center;
+  }
+
+  .brand {
+    font-size: 15px;
+    letter-spacing: 2px;
+  }
+
+  .playback-bar {
+    padding: 10px 12px;
+  }
+
+  .round-display {
+    margin-left: 0;
+  }
+
+  .timeline-feed {
+    padding: 18px 12px;
+  }
+
+  .timeline-axis,
+  .timeline-marker,
+  .round-divider {
+    left: 12px;
+  }
+
+  .timeline-card {
+    width: calc(100% - 28px);
+    margin-left: 28px;
+    padding: 14px;
+  }
+
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .action-badge {
+    letter-spacing: 1.5px;
+  }
 }
 </style>

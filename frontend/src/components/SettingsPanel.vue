@@ -973,6 +973,7 @@ const saveSettings = async () => {
   max-width: calc(100vw - 48px);
   max-height: calc(100vh - 80px);
   overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid rgba(167, 139, 250, 0.3);
   border-radius: 1.25rem;
   box-shadow:
@@ -983,6 +984,7 @@ const saveSettings = async () => {
   position: relative;
   animation: slide-in 0.2s ease-out;
   font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  min-width: 0;
 }
 
 @keyframes slide-in {
@@ -995,6 +997,7 @@ const saveSettings = async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 18px 22px;
   background: transparent;
   color: #f4f1ff;
@@ -1060,6 +1063,7 @@ const saveSettings = async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 18px;
 }
 
@@ -1634,7 +1638,27 @@ const saveSettings = async () => {
 
 .ai-docs-link a:hover { color: #a78bfa; }
 
-@media (max-width: 480px) {
+@media (max-width: 600px) {
+  .settings-overlay {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .settings-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 24px);
+  }
+
+  .modal-header,
+  .section-header {
+    flex-wrap: wrap;
+  }
+
+  .settings-section {
+    padding: 16px;
+  }
+
   .ai-tool {
     grid-template-columns: 1fr;
     gap: 2px;

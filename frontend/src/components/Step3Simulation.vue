@@ -1641,6 +1641,7 @@ onUnmounted(() => {
   justify-content: center;
   border-bottom: 1px solid rgba(167,139,250,0.16);
   z-index: 10;
+  min-width: 0;
 }
 
 /* --- Actions Bar (buttons) --- */
@@ -1836,7 +1837,11 @@ onUnmounted(() => {
 .status-group {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Platform Status Rows */
@@ -1855,13 +1860,14 @@ onUnmounted(() => {
   position: relative;
   cursor: pointer;
   user-select: none;
+  min-width: 0;
 }
 
 .platform-left {
   display: flex;
   align-items: center;
   gap: 5px;
-  min-width: 110px;
+  min-width: 0;
 }
 
 .platform-status:hover {
@@ -2016,7 +2022,7 @@ onUnmounted(() => {
   font-weight: 700;
   color: #f4f1ff;
   text-transform: uppercase;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
 }
 
 .platform-status.twitter .platform-icon { color: #f4f1ff; }
@@ -2030,7 +2036,9 @@ onUnmounted(() => {
 .platform-stats {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .stat {
@@ -3232,5 +3240,64 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .control-bar {
+    padding: 6px 10px;
+  }
+
+  .platform-status {
+    flex: 1 1 120px;
+    padding: 6px 8px;
+  }
+
+  .platform-name,
+  .stat-label,
+  .action-tag {
+    letter-spacing: 1.2px;
+  }
+
+  .timeline-header,
+  .timeline-stats,
+  .card-header,
+  .agent-info,
+  .header-meta,
+  .director-timeline-banner {
+    flex-wrap: wrap;
+  }
+
+  .timeline-feed {
+    padding: 18px 12px;
+  }
+
+  .timeline-axis,
+  .timeline-marker {
+    left: 12px;
+  }
+
+  .timeline-item .timeline-card {
+    width: calc(100% - 28px);
+    margin-left: 28px;
+    padding: 14px;
+    min-width: 0;
+  }
+
+  .timeline-card {
+    width: calc(100% - 28px);
+  }
+
+  .director-timeline-banner {
+    white-space: normal;
+  }
+
+  .log-line {
+    flex-wrap: wrap;
+  }
+
+  .action-btn.secondary,
+  .filter-chip {
+    letter-spacing: 1.5px;
+  }
 }
 </style>

@@ -43,6 +43,16 @@ export const getReport = (reportId) => {
 }
 
 /**
+ * Download report as Markdown
+ * @param {string} reportId
+ */
+export const downloadReportMarkdown = (reportId) => {
+  return service.get(`/api/report/${reportId}/download`, {
+    responseType: 'blob'
+  })
+}
+
+/**
  * Chat with Report Agent
  * @param {Object} data - { simulation_id, message, chat_history? }
  */
