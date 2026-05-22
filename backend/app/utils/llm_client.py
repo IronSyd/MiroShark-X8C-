@@ -208,6 +208,35 @@ class LLMClient:
             break
         return out
 
+    @staticmethod
+    def _normalize_message_content(content: Any) -> Optional[str]:
+        """Return cleaned text content from OpenAI-compatible message shapes."""
+        if content is None:
+            return None
+
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            parts = []
+            for part in content:
+                if isinstance(part, str):
+                    parts.append(part)
+                    continue
+                if isinstance(part, dict):
+                    maybe_text = part.get("text")
+                    if isinstance(maybe_text, str):
+                        parts.append(maybe_text)
+                    continue
+                maybe_text = getattr(part, "text", None)
+                if isinstance(maybe_text, str):
+                    parts.append(maybe_text)
+            text = "".join(parts)
+        else:
+            text = str(content)
+
+        text = re.sub(r'<think>[\s\S]*?</think>', '', text).strip()
+        return text or None
+
     def _emit_llm_event(self, messages, content, t0, *, response=None, error=None, temperature=0.7):
         """Emit an llm_call observability event (best-effort, never raises)."""
         try:
@@ -265,7 +294,7 @@ class LLMClient:
             response_format: Response format (e.g., JSON mode)
 
         Returns:
-            Model response text
+            Model response text, or None when the provider returned no content
         """
         effective_messages = (
             self._maybe_cache_wrap_messages(messages)
@@ -367,16 +396,10 @@ class LLMClient:
             self._emit_llm_event(messages, None, t0, error=exc, temperature=temperature)
             raise
 
-        content = response.choices[0].message.content
-        # Reasoning-capable models (e.g. Gemini 3 Flash) intermittently return
-        # None content on a turn. Guard before the regex and return None so
-        # callers' empty-response handling (e.g. the report ReAct loop's retry)
-        # engages instead of crashing on a NoneType regex.
-        if content is None:
-            self._emit_llm_event(messages, None, t0, response=response, temperature=temperature)
-            return None
-        # Some models (e.g., MiniMax M2.5) include <think> reasoning content in the content field, which needs to be removed
-        content = re.sub(r'<think>[\s\S]*?</think>', '', content).strip()
+        raw_content = response.choices[0].message.content
+        # Some models (e.g., MiniMax M2.5) include <think> reasoning content in the content field, which needs to be removed.
+        # OpenAI-compatible providers may also return null content for tool-only or empty responses.
+        content = self._normalize_message_content(raw_content)
 
         self._emit_llm_event(messages, content, t0, response=response, temperature=temperature)
         return content
@@ -406,8 +429,8 @@ class LLMClient:
         )
         # chat() returns None on an empty/null-content response — surface a
         # clear error rather than crashing on None.strip().
-        if response is None:
-            raise ValueError("LLM returned an empty response")
+        if not response:
+            raise ValueError("LLM returned empty response")
         # Clean up markdown code block markers
         cleaned_response = response.strip()
         cleaned_response = re.sub(r'^```(?:json)?\s*\n?', '', cleaned_response, flags=re.IGNORECASE)
