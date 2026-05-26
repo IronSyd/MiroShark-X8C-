@@ -1,0 +1,35 @@
+:80 {
+	encode zstd gzip
+
+	basic_auth {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+
+	handle /api/* {
+		reverse_proxy backend:5001
+	}
+
+	handle /health {
+		reverse_proxy backend:5001
+	}
+
+	handle /share/* {
+		reverse_proxy backend:5001
+	}
+
+	handle /watch/* {
+		reverse_proxy backend:5001
+	}
+
+	handle /sitemap.xml {
+		reverse_proxy backend:5001
+	}
+
+	handle /robots.txt {
+		reverse_proxy backend:5001
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
+}
