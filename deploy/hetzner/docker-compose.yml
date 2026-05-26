@@ -25,7 +25,7 @@ services:
       context: ../..
       dockerfile: deploy/hetzner/Dockerfile.frontend
       args:
-        VITE_API_BASE_URL: /api
+        VITE_API_BASE_URL: ""
     container_name: miroshark-web
     restart: unless-stopped
     expose:

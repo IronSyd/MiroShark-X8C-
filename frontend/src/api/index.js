@@ -1,9 +1,11 @@
 import axios from 'axios'
 import { locale } from '../i18n'
 
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://localhost:5001' : '')
+
 // Create axios instance
 const service = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001',
+  baseURL: API_BASE_URL,
   timeout: 300000, // 5-minute timeout (ontology generation may take a long time)
   headers: {
     'Content-Type': 'application/json'

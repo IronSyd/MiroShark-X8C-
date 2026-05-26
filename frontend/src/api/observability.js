@@ -1,4 +1,4 @@
-import service from './index'
+import service, { API_BASE_URL } from './index'
 
 /**
  * Create an SSE EventSource for live event streaming
@@ -11,8 +11,7 @@ export const streamEvents = (simulationId, eventTypes) => {
   if (simulationId) params.set('simulation_id', simulationId)
   if (eventTypes) params.set('event_types', eventTypes)
 
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'
-  return new EventSource(`${baseUrl}/api/observability/events/stream?${params}`)
+  return new EventSource(`${API_BASE_URL}/api/observability/events/stream?${params}`)
 }
 
 /**
