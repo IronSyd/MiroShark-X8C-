@@ -364,6 +364,7 @@ import {
   hasAnyPrefill,
   buildScenarioShareUrl,
 } from '../utils/urlParams'
+import { copyTextToClipboard } from '../utils/clipboard'
 import { tr } from '../i18n'
 
 const settingsOpen = ref(false)
@@ -704,7 +705,8 @@ const copyScenarioShareLink = async () => {
   if (!canShareScenarioLink.value) return
   const url = buildLiveShareUrl()
   try {
-    await navigator.clipboard.writeText(url)
+    const copied = await copyTextToClipboard(url)
+    if (!copied) throw new Error(tr('Copy failed.', '复制失败。'))
     shareLinkCopiedAt.value = Date.now()
     setTimeout(() => { shareLinkCopiedTick.value++ }, 2300)
   } catch (err) {

@@ -119,6 +119,7 @@ import { useRouter } from 'vue-router'
 import { listTemplates, getTemplate, getTemplateCapabilities } from '../api/templates'
 import { setPendingTemplate } from '../store/pendingUpload'
 import { buildTemplateShareUrl } from '../utils/urlParams'
+import { copyTextToClipboard } from '../utils/clipboard'
 
 const router = useRouter()
 
@@ -187,7 +188,8 @@ const copyTemplateLink = async (template) => {
   if (!template?.id) return
   const url = buildTemplateShareUrl(template.id)
   try {
-    await navigator.clipboard.writeText(url)
+    const copied = await copyTextToClipboard(url)
+    if (!copied) throw new Error('Copy failed')
     copiedLinkId.value = template.id
     setTimeout(() => {
       if (copiedLinkId.value === template.id) copiedLinkId.value = null
