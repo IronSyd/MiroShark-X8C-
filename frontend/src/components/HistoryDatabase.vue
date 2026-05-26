@@ -126,6 +126,17 @@
               :class="{ available: project.report_id, unavailable: !project.report_id }"
               :title="$tr('Analysis Report', '分析报告')"
             >◆</span>
+            <button
+              class="card-delete-btn"
+              :class="{ deleting: deletingId === project.simulation_id }"
+              :disabled="isDeleteDisabled(project)"
+              :title="getDeleteTitle(project)"
+              :aria-label="$tr('Delete simulation record', 'Delete simulation record')"
+              @click.stop="requestDelete(project)"
+            >
+              <span v-if="deletingId === project.simulation_id" class="loading-spinner-small"></span>
+              <span v-else>×</span>
+            </button>
           </div>
         </div>
 
@@ -314,6 +325,18 @@
               <span class="hint-text">{{ $tr('Select a step to replay from the simulation history', '从模拟历史中选择一个步骤进行回放') }}</span>
             </div>
 
+            <div class="modal-delete-row">
+              <button
+                class="delete-record-btn"
+                :disabled="isDeleteDisabled(selectedProject)"
+                :title="getDeleteTitle(selectedProject)"
+                @click="requestDelete(selectedProject)"
+              >
+                <span v-if="deletingId === selectedProject.simulation_id" class="loading-spinner-small"></span>
+                {{ deletingId === selectedProject.simulation_id ? $tr('Deleting...', 'Deleting...') : $tr('Delete Record', 'Delete Record') }}
+              </button>
+            </div>
+
             <!-- Resolve Prediction Section (completed simulations only) -->
             <div v-if="selectedProject.status === 'completed' || selectedProject.current_round > 0" class="modal-resolve-section">
               <div class="modal-divider">
@@ -471,6 +494,35 @@
       </Transition>
     </Teleport>
 
+    <!-- Permanent Delete Confirmation -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="deleteTarget" class="modal-overlay delete-overlay" @click.self="cancelDelete">
+          <div class="delete-dialog">
+            <div class="delete-dialog-header">
+              <span class="delete-dialog-kicker">{{ $tr('Permanent Delete', 'Permanent Delete') }}</span>
+              <button class="modal-close" :disabled="!!deletingId" @click="cancelDelete">×</button>
+            </div>
+            <h3 class="delete-dialog-title">{{ $tr('Delete this simulation record?', 'Delete this simulation record?') }}</h3>
+            <p class="delete-dialog-copy">
+              {{ $tr('This removes the simulation folder, generated reports, share/export artifacts, and push subscriptions. Source project files and graph data are kept.', 'This removes the simulation folder, generated reports, share/export artifacts, and push subscriptions. Source project files and graph data are kept.') }}
+            </p>
+            <div class="delete-dialog-id">{{ formatSimulationId(deleteTarget.simulation_id) }}</div>
+            <div v-if="deleteError" class="delete-error">{{ deleteError }}</div>
+            <div class="delete-dialog-actions">
+              <button class="delete-cancel-btn" :disabled="!!deletingId" @click="cancelDelete">
+                {{ $tr('Cancel', 'Cancel') }}
+              </button>
+              <button class="delete-confirm-btn" :disabled="!!deletingId" @click="confirmDelete">
+                <span v-if="!!deletingId" class="loading-spinner-small"></span>
+                {{ !!deletingId ? $tr('Deleting...', 'Deleting...') : $tr('Delete Permanently', 'Delete Permanently') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Embed Dialog -->
     <EmbedDialog
       :open="embedDialogOpen"
@@ -483,7 +535,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getSimulationHistory, forkSimulation, resolveSimulation, getSimulationQuality } from '../api/simulation'
+import { getSimulationHistory, forkSimulation, resolveSimulation, getSimulationQuality, deleteSimulation } from '../api/simulation'
 import { truncate as truncateText } from '../utils/text'
 import EmbedDialog from './EmbedDialog.vue'
 import { tr } from '../i18n'
@@ -536,6 +588,11 @@ const resolveError = ref('')
 // Embed dialog
 const embedDialogOpen = ref(false)
 const embedSimulationId = ref('')
+
+// Permanent delete flow
+const deleteTarget = ref(null)
+const deletingId = ref('')
+const deleteError = ref('')
 
 const openEmbedDialog = () => {
   if (!selectedProject.value) return
@@ -866,6 +923,68 @@ const closeModal = () => {
   forkError.value = ''
   showResolvePanel.value = false
   resolveError.value = ''
+}
+
+const ACTIVE_RUNNER_STATUSES = new Set(['starting', 'running', 'stopping'])
+
+const isActiveSimulation = (simulation) => {
+  const runnerStatus = (simulation?.runner_status || '').toLowerCase()
+  return ACTIVE_RUNNER_STATUSES.has(runnerStatus)
+}
+
+const isDeleteDisabled = (simulation) => {
+  if (!simulation) return true
+  if (deletingId.value) return true
+  return isActiveSimulation(simulation)
+}
+
+const getDeleteTitle = (simulation) => {
+  if (isActiveSimulation(simulation)) {
+    return tr('Stop or finish this simulation before deleting it.', 'Stop or finish this simulation before deleting it.')
+  }
+  return tr('Delete simulation record', 'Delete simulation record')
+}
+
+const requestDelete = (simulation) => {
+  if (!simulation || isActiveSimulation(simulation)) return
+  deleteTarget.value = simulation
+  deleteError.value = ''
+}
+
+const cancelDelete = () => {
+  if (deletingId.value) return
+  deleteTarget.value = null
+  deleteError.value = ''
+}
+
+const removeDeletedSimulation = (simulationId) => {
+  projects.value = projects.value.filter(project => project.simulation_id !== simulationId)
+  compareSelections.value = compareSelections.value.filter(id => id !== simulationId)
+  if (selectedProject.value?.simulation_id === simulationId) {
+    closeModal()
+  }
+}
+
+const confirmDelete = async () => {
+  if (!deleteTarget.value || deletingId.value) return
+
+  const simulationId = deleteTarget.value.simulation_id
+  deletingId.value = simulationId
+  deleteError.value = ''
+
+  try {
+    const response = await deleteSimulation(simulationId)
+    if (response.success) {
+      removeDeletedSimulation(simulationId)
+      deleteTarget.value = null
+    } else {
+      deleteError.value = response.error || tr('Delete failed', 'Delete failed')
+    }
+  } catch (err) {
+    deleteError.value = err?.response?.data?.error || err.message || tr('Delete failed', 'Delete failed')
+  } finally {
+    deletingId.value = ''
+  }
 }
 
 // Navigate to graph build page (Project)
@@ -1361,6 +1480,33 @@ onUnmounted(() => {
   gap: 6px;
 }
 
+.card-delete-btn {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(239, 68, 68, 0.24);
+  background: rgba(239, 68, 68, 0.04);
+  color: #dc2626;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex: 0 0 auto;
+}
+
+.card-delete-btn:hover:not(:disabled) {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.card-delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .status-icon {
   font-size: 0.75rem;
   transition: all 0.2s ease;
@@ -1653,6 +1799,16 @@ onUnmounted(() => {
   height: 24px;
   border: 2px solid rgba(10, 10, 10, 0.08);
   border-top-color: #a78bfa;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-spinner-small {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -2026,6 +2182,135 @@ onUnmounted(() => {
   letter-spacing: 3px;
   text-align: center;
   line-height: 1.5;
+}
+
+.modal-delete-row {
+  display: flex;
+  justify-content: center;
+  padding: 0 34px 22px;
+  background: #FAFAFA;
+}
+
+.delete-record-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.04);
+  color: #dc2626;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.delete-record-btn:hover:not(:disabled) {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.delete-record-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.delete-overlay {
+  z-index: 2200;
+}
+
+.delete-dialog {
+  width: min(460px, calc(100vw - 32px));
+  padding: 24px;
+  border: 2px solid rgba(10, 10, 10, 0.12);
+  background: #FAFAFA;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.2);
+}
+
+.delete-dialog-header,
+.delete-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.delete-dialog-kicker,
+.delete-dialog-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(10, 10, 10, 0.45);
+}
+
+.delete-dialog-title {
+  margin: 18px 0 10px;
+  font-size: 24px;
+  line-height: 1.15;
+  color: #0A0A0A;
+}
+
+.delete-dialog-copy {
+  margin: 0 0 16px;
+  color: rgba(10, 10, 10, 0.62);
+  line-height: 1.55;
+}
+
+.delete-dialog-id {
+  padding: 10px 12px;
+  background: rgba(10, 10, 10, 0.04);
+  border: 1px solid rgba(10, 10, 10, 0.08);
+}
+
+.delete-error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.06);
+  color: #dc2626;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.delete-dialog-actions {
+  margin-top: 18px;
+  justify-content: flex-end;
+}
+
+.delete-cancel-btn,
+.delete-confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.delete-cancel-btn {
+  border: 1px solid rgba(10, 10, 10, 0.14);
+  background: transparent;
+  color: rgba(10, 10, 10, 0.55);
+}
+
+.delete-confirm-btn {
+  border: 1px solid #dc2626;
+  background: #dc2626;
+  color: #fff;
+}
+
+.delete-cancel-btn:disabled,
+.delete-confirm-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .card-progress-row {
@@ -2772,7 +3057,8 @@ onUnmounted(() => {
   .modal-header,
   .modal-body,
   .modal-actions,
-  .modal-divider {
+  .modal-divider,
+  .modal-delete-row {
     padding-left: 16px;
     padding-right: 16px;
   }
@@ -2796,6 +3082,11 @@ onUnmounted(() => {
   .metric-label {
     width: auto;
     min-width: 120px;
+  }
+
+  .delete-dialog-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
   }
 }
 </style>

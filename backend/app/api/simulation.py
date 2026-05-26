@@ -2168,6 +2168,85 @@ def get_simulation(simulation_id: str):
         }), 500
 
 
+@simulation_bp.route('/<simulation_id>', methods=['DELETE'])
+def delete_simulation(simulation_id: str):
+    """Permanently delete an inactive simulation and its reports."""
+    locale = get_locale(request)
+    try:
+        manager = SimulationManager()
+        state = manager.get_simulation(simulation_id)
+
+        if not state:
+            return jsonify({
+                "success": False,
+                "error": _t(f"Simulation not found: {simulation_id}", f"æœªæ‰¾åˆ°æ¨¡æ‹Ÿ:{simulation_id}", locale)
+            }), 404
+
+        blocked_runner_statuses = {
+            RunnerStatus.STARTING,
+            RunnerStatus.RUNNING,
+            RunnerStatus.STOPPING,
+        }
+        run_state = SimulationRunner.get_run_state(simulation_id)
+
+        from ..models.task import TaskManager
+
+        active_prepare_task = False
+        if state.status == SimulationStatus.PREPARING:
+            active_task_statuses = {"pending", "processing"}
+            active_prepare_task = any(
+                task.get("metadata", {}).get("simulation_id") == simulation_id
+                and task.get("status") in active_task_statuses
+                for task in TaskManager().list_tasks(task_type="simulation_prepare")
+            )
+
+        if (run_state and run_state.runner_status in blocked_runner_statuses) or active_prepare_task:
+            return jsonify({
+                "success": False,
+                "error": _t(
+                    "Simulation is active; stop it or wait for it to finish before deleting.",
+                    "æ¨¡æ‹Ÿæ­£åœ¨è¿è¡Œ; è¯·å…ˆåœæ­¢æˆ–ç­‰å¾…å®ŒæˆåŽå†åˆ é™¤ã€‚",
+                    locale
+                )
+            }), 409
+
+        from ..services.report_agent import ReportManager
+
+        deleted_reports = []
+        for report in ReportManager.list_reports(simulation_id=simulation_id, limit=10000):
+            if ReportManager.delete_report(report.report_id):
+                deleted_reports.append(report.report_id)
+
+        delete_result = manager.delete_simulation(simulation_id)
+        if not delete_result.get("deleted"):
+            return jsonify({
+                "success": False,
+                "error": _t(f"Simulation not found: {simulation_id}", f"æœªæ‰¾åˆ°æ¨¡æ‹Ÿ:{simulation_id}", locale)
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": _t(f"Simulation deleted: {simulation_id}", f"å·²åˆ é™¤æ¨¡æ‹Ÿ:{simulation_id}", locale),
+            "data": {
+                "simulation_id": simulation_id,
+                "deleted_reports": deleted_reports,
+            }
+        })
+
+    except ValueError as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
+    except Exception as e:
+        logger.error(f"Failed to delete simulation: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+
 @simulation_bp.route('/list', methods=['GET'])
 def list_simulations():
     """

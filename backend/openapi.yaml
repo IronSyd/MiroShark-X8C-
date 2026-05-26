@@ -650,6 +650,24 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SimulationEnvelope" }
         "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Live State]
+      summary: Permanently delete an inactive simulation and linked reports.
+      parameters:
+        - $ref: "#/components/parameters/SimulationIdPath"
+      responses:
+        "200":
+          description: Simulation and linked report artifacts were deleted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SuccessEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Simulation is preparing, running, paused, or stopping.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
 
   /api/simulation/list:
     get:

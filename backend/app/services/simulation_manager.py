@@ -162,6 +162,10 @@ class SimulationManager:
         os.path.dirname(__file__), 
         '../../uploads/simulations'
     )
+    PUSH_SUBSCRIPTIONS_DIR = os.path.join(
+        os.path.dirname(__file__),
+        '../../uploads/push_subscriptions'
+    )
     
     def __init__(self):
         # Ensure directory exists
@@ -172,9 +176,17 @@ class SimulationManager:
     
     def _get_simulation_dir(self, simulation_id: str) -> str:
         """Get simulation data directory"""
+        return self._resolve_simulation_dir(simulation_id, create=True)
+
+    def _resolve_simulation_dir(self, simulation_id: str, *, create: bool = False) -> str:
+        """Resolve a simulation directory without allowing path escape."""
         validate_simulation_id(simulation_id)
-        sim_dir = os.path.join(self.SIMULATION_DATA_DIR, simulation_id)
-        os.makedirs(sim_dir, exist_ok=True)
+        data_root = os.path.realpath(self.SIMULATION_DATA_DIR)
+        sim_dir = os.path.realpath(os.path.join(data_root, simulation_id))
+        if os.path.commonpath([data_root, sim_dir]) != data_root:
+            raise ValueError("simulation_id resolves outside simulation data directory")
+        if create:
+            os.makedirs(sim_dir, exist_ok=True)
         return sim_dir
     
     def _save_simulation_state(self, state: SimulationState):
@@ -194,7 +206,7 @@ class SimulationManager:
         if simulation_id in self._simulations:
             return self._simulations[simulation_id]
         
-        sim_dir = self._get_simulation_dir(simulation_id)
+        sim_dir = self._resolve_simulation_dir(simulation_id)
         state_file = os.path.join(sim_dir, "state.json")
         
         if not os.path.exists(state_file):
@@ -546,6 +558,39 @@ class SimulationManager:
     def get_simulation(self, simulation_id: str) -> Optional[SimulationState]:
         """Get simulation state"""
         return self._load_simulation_state(simulation_id)
+
+    def delete_simulation(self, simulation_id: str) -> Dict[str, Any]:
+        """Delete a simulation folder and clear in-memory state."""
+        validate_simulation_id(simulation_id)
+        sim_dir = self._resolve_simulation_dir(simulation_id)
+        if not os.path.exists(os.path.join(sim_dir, "state.json")):
+            return {"deleted": False, "simulation_id": simulation_id}
+
+        cleanup_result = None
+        try:
+            from .simulation_runner import SimulationRunner
+            cleanup_result = SimulationRunner.cleanup_simulation_logs(simulation_id)
+        except Exception as exc:
+            logger.warning(f"Run-log cleanup failed before deleting {simulation_id}: {exc}")
+
+        if os.path.isdir(sim_dir):
+            shutil.rmtree(sim_dir)
+
+        deleted_subscription_files = []
+        for filename in (f"{simulation_id}.json", f"{simulation_id}.json.lock"):
+            path = os.path.join(self.PUSH_SUBSCRIPTIONS_DIR, filename)
+            if os.path.exists(path):
+                os.remove(path)
+                deleted_subscription_files.append(filename)
+
+        self._simulations.pop(simulation_id, None)
+        logger.info(f"Simulation deleted: {simulation_id}")
+        return {
+            "deleted": True,
+            "simulation_id": simulation_id,
+            "cleanup": cleanup_result,
+            "deleted_subscription_files": deleted_subscription_files,
+        }
     
     def list_simulations(self, project_id: Optional[str] = None) -> List[SimulationState]:
         """List all simulations"""

@@ -33,6 +33,14 @@ export const getSimulation = (simulationId) => {
 }
 
 /**
+ * Permanently delete a simulation record and its generated reports
+ * @param {string} simulationId
+ */
+export const deleteSimulation = (simulationId) => {
+  return service.delete(`/api/simulation/${simulationId}`)
+}
+
+/**
  * Get simulation Agent Profiles
  * @param {string} simulationId
  * @param {string} platform - 'reddit' | 'twitter'
