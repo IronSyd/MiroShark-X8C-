@@ -13,6 +13,7 @@ services:
     environment:
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:?BASIC_AUTH_USER must be set}
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?BASIC_AUTH_HASH must be set}
+      MIROSHARK_INTERNAL_KEY: ${MIROSHARK_INTERNAL_KEY:?MIROSHARK_INTERNAL_KEY must be set}
     ports:
       - "80:80"
     volumes:
@@ -49,6 +50,7 @@ services:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be set}
+      MIROSHARK_INTERNAL_KEY: ${MIROSHARK_INTERNAL_KEY:?MIROSHARK_INTERNAL_KEY must be set}
     depends_on:
       neo4j:
         condition: service_healthy

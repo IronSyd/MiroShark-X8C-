@@ -6,7 +6,9 @@
 	}
 
 	handle /api/* {
-		reverse_proxy backend:5001
+		reverse_proxy backend:5001 {
+			header_up x-miroshark-internal-key {$MIROSHARK_INTERNAL_KEY}
+		}
 	}
 
 	handle /health {
