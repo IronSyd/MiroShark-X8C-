@@ -22,14 +22,16 @@ services:
 
   web:
     build:
-      context: ../..
-      dockerfile: deploy/hetzner/Dockerfile.frontend
+      context: ../../frontend
+      dockerfile: ../deploy/hetzner/Dockerfile.frontend
       args:
         VITE_API_BASE_URL: ""
     container_name: miroshark-web
     restart: unless-stopped
     expose:
       - "80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
   backend:
     build:
